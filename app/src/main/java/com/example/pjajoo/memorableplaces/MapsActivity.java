@@ -3,6 +3,7 @@ package com.example.pjajoo.memorableplaces;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -25,6 +26,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -52,12 +54,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         mMap.clear();
 
-        if (!place.equalsIgnoreCase("your location")) {
+        if (!place.equals("Your Location")) {
             mMap.addMarker(new MarkerOptions().position(latLng).title(place));
         }
 
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 10));
-
     }
 
     @Override
@@ -68,7 +69,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
                 final Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                centerMapOnLocation(lastKnownLocation, "Last Known Location");
+                centerMapOnLocation(lastKnownLocation, "Your Location");
             }
         }
     }
@@ -119,18 +120,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
-
                 final Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                centerMapOnLocation(lastKnownLocation, "Your Location");
+                if (lastKnownLocation != null){
+                    centerMapOnLocation(lastKnownLocation, "Your Location");
+                }
             } else {
                 ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
             }
         } else {
             final Location location = new Location(LocationManager.GPS_PROVIDER);
-            final LatLng latLng = MainActivity.locations.get(placeNumber);
+            final LatLng latLng = MainActivity.locations.get(intent.getIntExtra("placeNumber", 0));
             location.setLatitude(latLng.latitude);
             location.setLongitude(latLng.longitude);
-            centerMapOnLocation(location, MainActivity.places.get(placeNumber));
+            centerMapOnLocation(location, MainActivity.places.get(intent.getIntExtra("placeNumber", 0)));
         }
     }
 
@@ -164,6 +166,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         MainActivity.places.add(address);
         MainActivity.locations.add(latLng);
+        final SharedPreferences sharedPreferences = this.getSharedPreferences("com.example.pjajoo.memorableplaces", Context.MODE_PRIVATE);
+
+        try {
+            sharedPreferences.edit().putString("places", ObjectSerializer.serialize(MainActivity.places)).apply();
+
+            final ArrayList<String> latitudes = new ArrayList<>();
+            final ArrayList<String> longitudes = new ArrayList<>();
+
+            for (LatLng coordinates : MainActivity.locations) {
+                latitudes.add(Double.toString(coordinates.latitude));
+                longitudes.add(Double.toString(coordinates.longitude));
+            }
+            sharedPreferences.edit().putString("latitudes", ObjectSerializer.serialize(latitudes)).apply();
+            sharedPreferences.edit().putString("longitudes", ObjectSerializer.serialize(longitudes)).apply();
+        } catch (final Exception e) {
+            e.printStackTrace();
+            Log.e("Exception", "while storing data in shared preferences");
+        }
+
         MainActivity.arrayAdapter.notifyDataSetChanged();
 
         Toast.makeText(this, "Location Saved!", Toast.LENGTH_LONG);
